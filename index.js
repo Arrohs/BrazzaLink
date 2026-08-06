@@ -1,64 +1,45 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const app = express();
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
 // Connexion à Supabase
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
 
-// 1. ENDPOINT : Récupérer la liste des produits
-app.get('/api/products', async (req, res) => {
-  const { data, error } = await supabase.from('products').select('*');
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+// Vérification des variables
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Erreur: SUPABASE_URL ou SUPABASE_KEY manquante dans Vercel.");
+}
+
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+
+// Route de test (page d'accueil de l'API)
+app.get('/', (req, res) => {
+  res.json({ status: "OK", message: "API BrazzaLink fonctionnelle sur Vercel !" });
 });
 
-// 2. ENDPOINT : Inscription / Connexion avec Numéro de Téléphone
-app.post('/api/auth/login', async (req, res) => {
-  const { phone_number, full_name, city } = req.body;
-
-  if (!phone_number) {
-    return res.status(400).json({ error: "Le numéro de téléphone est obligatoire" });
+// Exemple de route pour tester Supabase (remplace 'users' par une de tes tables si besoin)
+app.get('/test-db', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('users').select('*').limit(1);
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
-
-  let { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('phone_number', phone_number)
-    .single();
-
-  if (!user) {
-    const { data: newUser, error: createError } = await supabase
-      .from('users')
-      .insert([{ phone_number, full_name, city }])
-      .select()
-      .single();
-
-    if (createError) return res.status(400).json({ error: createError.message });
-    user = newUser;
-  }
-
-  res.json({ message: "Authentification réussie", user });
 });
 
-// 3. ENDPOINT : Suivi de Colis (Tracking Chine -> Congo)
-app.get('/api/shipments/:userId', async (req, res) => {
-  const { userId } = req.params;
+// Configuration du serveur local / Vercel
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`Serveur prêt sur le port ${PORT}`));
+}
 
-  const { data, error } = await supabase
-    .from('shipments')
-    .select('*, products(title, images)')
-    .eq('user_id', userId);
-
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Serveur BrazzaLink prêt sur le port ${PORT}`);
-});
+// OBLIGATOIRE POUR VERCEL
+module.exports = app;
